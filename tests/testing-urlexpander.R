@@ -7,15 +7,15 @@
 source(here::here("R", "get_title_tag.R"))
 source(here::here("R", "replace_url_with_title.R"))
 
-
+#This will randomly choose a tweet and run the function on it.
 
 # Read's in the CSV
 raw_output <- read.csv(here::here("data", "output-2020-01-21.csv"), stringsAsFactors = FALSE)
 
 # Tests random tweets
 
+random_number <- sample(1:nrow(raw_output), 1, replace = TRUE)
 
-#In progress...
-raw_output <- raw_output %>% 
-  mutate(urlexpanded = map_dbl(raw_output$text, replace_url_with_title()))
+test <- replace_url_with_title(raw_output$text[random_number])
 
+test
