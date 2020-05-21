@@ -21,7 +21,10 @@ get_title_tag <- function(url) {
   
   # Extracts the html code
   conf_nodes <- html_nodes(page, xpath = path_to_title)
-  
+
+  if (length(conf_nodes) == 0){
+    return("URL TITLE NOT FOUND")
+  }
   # Cleans up the HTML to text
   title <- html_text(conf_nodes)
   
