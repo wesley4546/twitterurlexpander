@@ -15,7 +15,8 @@ raw_output <- read.csv(here::here("data", "output-2020-01-21.csv"), stringsAsFac
 # Tests random tweets
 
 
-#In progress...
-raw_output <- raw_output %>% 
-  mutate(urlexpanded = map_dbl(raw_output$text, replace_url_with_title()))
 
+#In progress...
+raw_output_tweet <- 
+  raw_output$text %>% 
+  map_dfc(~ replace_url_with_title(.x))
