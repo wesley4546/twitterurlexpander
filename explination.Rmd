@@ -1,0 +1,234 @@
+---
+title: "Twitter Url Expander"
+author: "Wesley Gardiner"
+date: "5/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+(Insert a good introduction)
+
+What this process does is locate a URL within a tweet, visit the website, extract the HTML `<title>` tag (which is moreless informative of what the link is), and replaces that URL with the text within the tweet.
+
+# Summary
+
+The way we go about this is by creating 2 functions:
+
+ * A function to get the title tag from the URL
+ * A function to replace that title tag within the tweet
+ 
+# Getting Started
+
+We're going to be using the following packages:
+
+```{r, echo = FALSE, }
+suppressMessages(library(dplyr))
+suppressMessages(library(rvest))
+suppressMessages(library(stringr))
+```
+```
+#To install
+install.packages(c("dplyr","rvest","stringr"))
+
+library(dplyr)
+library(rvest)
+library(stringr)
+```
+Once we have those installed we can get to writing some functions to help us!
+
+
+### The `get_title_tag()` function
+
+
+To get started we have to make a function that will retrieve the title tag. 
+
+These are the steps:
+
+ 1. Check to make sure the URL is cleaned
+ 1. Check to make sure we get a response from the URL
+ 1. Parse out the `<title>` tag
+ 1. Return the tag
+
+In order to make sure our function runs smoothly, we need to employ checks to make sure that happens. We can use R's `tryCatch()` function along with some `if()` statements to ensure that if we run into an error, our function can continue.
+
+We can see that written out here:
+
+```{r}
+
+get_title_tag <- function(url) {
+
+  # Check to see if the URL is an NA
+  if (is.na(url)) {
+    return("NA")
+  }
+
+  # tests to make sure that the read_html goes smoothly
+  test <- tryCatch(
+    {
+      page <- read_html(url)
+    },
+    error = function(e) {
+      page <- "URL TITLE NOT FOUND"
+      return(page)
+    }
+  )
+
+  suppressMessages(if (test == "URL TITLE NOT FOUND") {
+    return("URL TITLE NOT FOUND")
+  })
+
+
+  # This is the XPATH to the title tag in HTML
+  path_to_title <- "/html/head/title"
+
+  # Extracts the html code
+  page_nodes <- html_nodes(page, xpath = path_to_title)
+
+  # This makes sure that our page_node object doesn't have a length of 0
+  if (length(page_nodes) == 0) {
+    return("URL TITLE NOT FOUND")
+  }
+
+  # Cleans up the HTML to text
+  title <- html_text(page_nodes)
+
+  return(title)
+}
+```
+
+Now that we have a function that will return the title tag of a URL we put in it, we need a way to replace the URL within the tweet with that information.
+
+
+### The `replace_url_with_title()` function
+
+Once we have the URL's title, we then need a way to replace that title with the URL.
+
+In this next function we:
+
+ 1. Find the URL's within a tweet.
+ 1. Get a list of all the title tags from the URLs
+ 1. Replace the URL with the title
+ 
+```{r}
+
+replace_url_with_title <- function(tweet){
+  
+  #Expression to detect URLs
+  regex_expression = "(http|https)://([^\\s]+)"
+  
+  #Extracts the URLs
+  extracted_url <- str_extract_all(string = tweet, regex(regex_expression))
+  
+  #Initializes a blank list 
+  titles_from_url <- c()
+  
+  #sends a GET request to get the title tags from the URLS
+  for (i in extracted_url[[1]]) {
+    print(paste("Trying URL:", i))
+    titles_from_url[i] <- get_title_tag(i)
+  }
+  
+  #Reformats the tweet into a list
+  list_tweet <- strsplit(tweet, split = " ")
+  #Reformats THAT list into a dataframe
+  list_tweet <-
+    as.data.frame(list_tweet)
+  
+  #Changes column name for clarity/useability
+  colnames(list_tweet) <- "words"
+  
+  #Creates a dataframe of the urls and titles
+  replacements <- data.frame(
+    words = extracted_url[[1]],
+    title = titles_from_url
+  )
+  
+  #Joins them together
+  list_tweet <- suppressMessages(full_join(list_tweet, replacements)) #the id key is words
+  
+  #Creates a column with the tweet and the titles pasted side by side
+  list_tweet$t <- paste(list_tweet$words, list_tweet$title, sep = " ")
+  
+  # Gets the tweet into a single string
+  completed_tweet <- toString(unlist(as.list(list_tweet$t)))
+  
+  #Replaces all the string NA's from the comabination process 
+  completed_tweet <- str_replace_all(completed_tweet, "NA", "") %>%
+    str_replace_all(",", "") %>% #Removes any , 
+    str_replace_all(regex(regex_expression), "") #takes out the urls
+  
+  return(completed_tweet)
+}
+```
+
+Essentially we are transforming the tweet to a `dataframe` and then joining that with a `dataframe` of the urls. This allows us to keep the indecies of the url to title to which we then just append and remove the URL.
+
+It seems like an absurd way to figure out this problem, but it works and handles exceptions :)
+
+
+# Production
+
+Now that we have our functions to help us, we simply need to map that function to our data.
+
+Creating a fake dataset:
+
+```{r}
+# These links will be in the format if it was retweet
+
+# A tweet that has a link that works, and a link that does nots
+tweet_1 <- "RT @CDCgov: PHAP gives future #publichealth professionals critical frontline     experience. Apply now! https://t.co/8kzRD1IADl https://t.co/haâ€¦"
+
+# A link that works but is in a different position
+tweet_2 <- "Wow, this article https://t.co/DH6Pxpc3lR is crazy!"
+
+# A link that doesn't work
+tweet_3 <- "Hear more from the CDC website https://t.co/jv86wGoo0G"
+
+
+# Creates a similar data frame in which we recieve our data
+our_twitter_data <- data.frame(
+  text = c(tweet_1, tweet_2, tweet_3),
+  stringsAsFactors = FALSE
+)
+```
+
+Now we can use the `purr` package to map our functions onto our data
+
+```{r, echo=FALSE}
+suppressMessages(library(purrr))
+```
+```
+#To install
+install.packages("purr")
+
+library(purrr)
+```
+
+
+If we have a look at `tweet_1` we can see that we have some fancy characters. This can be problematic because if we put that into our `get_title_tag()` function, then we will have to wait for the GET response to time out. We can fix this with a little cleaning of the data.
+
+
+```{r}
+#Removes any of the bad characters (usually these are an ellipse in tweets)
+our_twitter_data$text <-  gsub("(â|€|¦)", "", our_twitter_data$text)
+```
+
+
+```{r}
+expanded_urls <- 
+  our_twitter_data$text %>% 
+  map(~ replace_url_with_title(.x)) %>% 
+  map_dfr( ~ as.data.frame(t(.))) 
+
+new_twitter_data <- 
+  our_twitter_data %>% 
+  bind_cols(expanded_urls)
+
+new_twitter_data
+```
+

@@ -1,11 +1,14 @@
 library(rvest)
-library(tidyverse)
+library(dplyr)
 library(stringr)
 
 replace_url_with_title <- function(tweet){
   
-  #Takes all the URLS out of the tweet
-  extracted_url <- str_extract_all(string = tweet, regex("(http|https)://([^\\s]+)"))
+  #Expression to detect URLs
+  regex_expression = "(http|https)://([^\\s]+)"
+  
+  #Extracts the URLs
+  extracted_url <- str_extract_all(string = tweet, regex(regex_expression))
   
   #Initializes a blank list 
   titles_from_url <- c()
@@ -15,6 +18,8 @@ replace_url_with_title <- function(tweet){
     print(paste("Trying URL:", i))
     titles_from_url[i] <- get_title_tag(i)
   }
+  
+  closeAllConnections()
   
   #Reformats the tweet into a list
   list_tweet <- strsplit(tweet, split = " ")
@@ -32,7 +37,7 @@ replace_url_with_title <- function(tweet){
   )
   
   #Joins them together
-  list_tweet <- full_join(list_tweet, replacements) #the id key is words
+  list_tweet <- suppressMessages(full_join(list_tweet, replacements)) #the id key is words
   
   #Creates a column with the tweet and the titles pasted side by side
   list_tweet$t <- paste(list_tweet$words, list_tweet$title, sep = " ")
@@ -43,7 +48,7 @@ replace_url_with_title <- function(tweet){
   #Replaces all the string NA's from the comabination process 
   completed_tweet <- str_replace_all(completed_tweet, "NA", "") %>%
     str_replace_all(",", "") %>% #Removes any , 
-    str_replace_all(regex("(http|https)://([^\\s]+)"), "") #takes out the urls
+    str_replace_all(regex(regex_expression), "") #takes out the urls
   
   return(completed_tweet)
 }
